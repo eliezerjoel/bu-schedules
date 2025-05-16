@@ -1,0 +1,28 @@
+// services/timetableService.js
+import axios from 'axios';
+
+const API_URL = '/api/timetable';
+
+export const fetchCourses = () => {
+  return axios.get(`${API_URL}/courses`);
+};
+
+export const fetchLecturersForCourse = (courseId) => {
+  return axios.get(`${API_URL}/lecturers/available?courseId=${courseId}`);
+};
+
+export const fetchTimeSlotsForCourseLecturer = (courseId, lecturerId) => {
+  return axios.get(`${API_URL}/timeslots/available?courseId=${courseId}&lecturerId=${lecturerId}`);
+};
+
+export const createAssignment = (assignmentData) => {
+  return axios.post(`${API_URL}/assign`, assignmentData);
+};
+
+export const fetchAllAssignments = () => {
+  return axios.get(`${API_URL}/assignments`);
+};
+
+export const deleteAssignment = (id) => {
+  return axios.delete(`${API_URL}/assignments/${id}`);
+};
