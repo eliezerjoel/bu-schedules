@@ -14,82 +14,131 @@ const CourseAssignment = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   
+  // Enhanced state
+  const [filters, setFilters] = useState({
+    department: '',
+    creditHours: '',
+    searchTerm: ''
+  });
+  const [lecturerWorkloads, setLecturerWorkloads] = useState({});
+  const [conflictMap, setConflictMap] = useState({});
+  const [navigationStack, setNavigationStack] = useState([]);
+  const [batchMode, setBatchMode] = useState(false);
+  
   // Step tracking
   const [currentStep, setCurrentStep] = useState(1);
   
-  // Fetch all courses on component mount
-  // useEffect(() => {
-  //   const fetchCourses = async () => {
-  //     setLoading(true);
-  //     try {
-  //       const response = await axios.get('http://localhost:8080/api/courses');
-  //       setCourses(response.data);
-  //     } catch (err) {
-  //       setError('Failed to load courses. Please try again.');
-  //       console.error('Error fetching courses:', err);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-    
-  //   fetchCourses();
-  // }, []);
-  
-    
-  // Fetch courses from backend API
+  // Fetch all courses
   useEffect(() => {
-    fetch('http://localhost:8080/api/courses')
-    .then((res) => res.json())
-    .then((data) => setCourses(data))
-    .catch((err) => {
-      console.error('Failed to fetch courses:', err);
-      setCourses([]);
-    });
+    const fetchCourses = async () => {
+      setLoading(true);
+      try {
+        const response = await axios.get('http://localhost:8080/api/courses');
+        setCourses(response.data);
+      } catch (err) {
+        setError('Failed to load courses. Please try again.');
+        console.error('Error fetching courses:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCourses();
   }, []);
 
   // Fetch available lecturers when a course is selected
   useEffect(() => {
     if (selectedCourse) {
-      setLoading(true);
-      fetch(`http://localhost:8080/api/instructors?courseId=${selectedCourse.id}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setLecturers(data);
-          setCurrentStep(2);
-        })
-        .catch((err) => {
-          setError('Failed to load lecturers. Please try again.');
-          console.error('Error fetching lecturers:', err);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    }
-  }, [selectedCourse]);
-  
-  // Fetch available time slots when a lecturer is selected
-  useEffect(() => {
-    if (selectedCourse && selectedLecturer) {
-      const fetchTimeSlots = async () => {
+      const fetchLecturers = async () => {
         setLoading(true);
         try {
           const response = await axios.get(
-            `/api/timetable/timeslots/available?courseId=${selectedCourse.id}&lecturerId=${selectedLecturer.id}`
+            `http://localhost:8080/api/instructors?courseId=${selectedCourse.id}`
           );
-          setTimeSlots(response.data);
+          setLecturers(response.data);
+          
+          // Fetch workloads for each lecturer
+          const workloads = {};
+          await Promise.all(response.data.map(async lecturer => {
+            const res = await axios.get(`/api/lecturers/${lecturer.id}/workload`);
+            workloads[lecturer.id] = res.data.totalHours;
+          }));
+          setLecturerWorkloads(workloads);
+          
+          setCurrentStep(2);
         } catch (err) {
-          setError('Failed to load time slots. Please try again.');
-          console.error('Error fetching time slots:', err);
+          setError('Failed to load lecturers. Please try again.');
+          console.error('Error fetching lecturers:', err);
         } finally {
           setLoading(false);
         }
       };
-      
-      fetchTimeSlots();
-      setCurrentStep(3);
+      fetchLecturers();
+    }
+  }, [selectedCourse]);
+  
+  // Fetch available time slots and check conflicts
+  useEffect(() => {
+    if (selectedCourse && selectedLecturer) {
+      const fetchData = async () => {
+        setLoading(true);
+        try {
+          // Get available time slots
+          const slotsResponse = await axios.get(
+            `/api/timetable/timeslots/available?courseId=${selectedCourse.id}&lecturerId=${selectedLecturer.id}`
+          );
+          setTimeSlots(slotsResponse.data);
+          
+          // Check conflicts for each slot
+          const conflicts = {};
+          await Promise.all(slotsResponse.data.map(async slot => {
+            const res = await axios.post('/api/schedule/check-conflict', {
+              lecturerId: selectedLecturer.id,
+              day: slot.dayOfWeek,
+              time: slot.startTime
+            });
+            conflicts[`${slot.dayOfWeek}-${slot.startTime}`] = res.data.hasConflict;
+          }));
+          setConflictMap(conflicts);
+          
+          setCurrentStep(3);
+        } catch (err) {
+          setError('Failed to load time slots. Please try again.');
+          console.error('Error:', err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchData();
     }
   }, [selectedLecturer, selectedCourse]);
   
+  // Filter courses based on filters
+  const filteredCourses = courses.filter(course => {
+    return (
+      (!filters.department || course.department === filters.department) &&
+      (!filters.creditHours || course.credits == filters.creditHours) &&
+      (!filters.searchTerm || 
+       course.name.toLowerCase().includes(filters.searchTerm.toLowerCase()))
+    );
+  });
+
+  // Navigation functions
+  const goToStep = (step, data) => {
+    setNavigationStack([...navigationStack, { step: currentStep, data }]);
+    setCurrentStep(step);
+  };
+
+  const goBack = () => {
+    if (navigationStack.length > 0) {
+      const previous = navigationStack[navigationStack.length - 1];
+      setNavigationStack(navigationStack.slice(0, -1));
+      setCurrentStep(previous.step);
+      // Restore previous selections if needed
+    } else {
+      setCurrentStep(1);
+    }
+  };
+
   // Handle course selection
   const handleCourseSelect = (course) => {
     setSelectedCourse(course);
@@ -97,6 +146,7 @@ const CourseAssignment = () => {
     setSelectedTimeSlot(null);
     setSuccess(null);
     setError(null);
+    goToStep(2, { course });
   };
   
   // Handle lecturer selection
@@ -105,6 +155,7 @@ const CourseAssignment = () => {
     setSelectedTimeSlot(null);
     setSuccess(null);
     setError(null);
+    goToStep(3, { lecturer });
   };
   
   // Handle time slot selection
@@ -114,10 +165,32 @@ const CourseAssignment = () => {
     setError(null);
   };
   
+  // Check for conflicts
+  const checkConflicts = async () => {
+    try {
+      const response = await axios.post('/api/timetable/check-conflict', {
+        lecturerId: selectedLecturer.id,
+        dayOfWeek: selectedTimeSlot.dayOfWeek,
+        startTime: selectedTimeSlot.startTime,
+        endTime: selectedTimeSlot.endTime
+      });
+      return response.data.hasConflict;
+    } catch (err) {
+      console.error('Conflict check failed:', err);
+      return true; // Assume conflict if check fails
+    }
+  };
+  
   // Handle final submission
   const handleSubmit = async () => {
     if (!selectedCourse || !selectedLecturer || !selectedTimeSlot) {
       setError('Please complete all selections before submitting.');
+      return;
+    }
+    
+    const hasConflict = await checkConflicts();
+    if (hasConflict) {
+      setError('This assignment conflicts with existing schedule. Please choose a different time.');
       return;
     }
     
@@ -133,11 +206,12 @@ const CourseAssignment = () => {
       
       setSuccess(`Successfully assigned ${selectedCourse.name} to ${selectedLecturer.name} on ${selectedTimeSlot.dayOfWeek} at ${selectedTimeSlot.startTime}`);
       
-      // Reset selections for next assignment
+      // Reset for next assignment
       setSelectedCourse(null);
       setSelectedLecturer(null);
       setSelectedTimeSlot(null);
       setCurrentStep(1);
+      setNavigationStack([]);
     } catch (err) {
       setError('Failed to create assignment. Please try again.');
       console.error('Error creating assignment:', err);
@@ -152,6 +226,7 @@ const CourseAssignment = () => {
     setSelectedLecturer(null);
     setSelectedTimeSlot(null);
     setCurrentStep(1);
+    setNavigationStack([]);
     setSuccess(null);
     setError(null);
   };
@@ -194,159 +269,284 @@ const CourseAssignment = () => {
         </div>
       )}
       
-      {/* Step 1: Course Selection */}
-      <div className={`mb-6 ${currentStep === 1 ? 'block' : 'hidden'}`}>
-        <h2 className="text-xl font-semibold mb-4">Step 1: Select a Course</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {courses.map((course) => (
-            <div
-              key={course.id}
-              className={`border p-4 rounded cursor-pointer ${
-                selectedCourse?.id === course.id ? 'bg-blue-100 border-blue-500' : 'hover:bg-gray-50'
-              }`}
-              onClick={() => handleCourseSelect(course)}
-            >
-              <h3 className="font-medium">{course.courseName}</h3>
-              <p className="text-gray-600">{course.courseCode}</p>
-              <p className="text-sm text-gray-500">{course.credits} credits</p>
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      {/* Step 2: Lecturer Assignment */}
-      <div className={`mb-6 ${currentStep === 2 ? 'block' : 'hidden'}`}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Step 2: Assign a Lecturer</h2>
-          <button
-            className="text-blue-500 hover:text-blue-700"
-            onClick={() => {
-              setSelectedCourse(null);
-              setCurrentStep(1);
-            }}
-          >
-            ← Back to Courses
-          </button>
-        </div>
-        
-        <div className="mb-4">
-          <p className="font-medium">Selected Course: {selectedCourse?.name} ({selectedCourse?.courseCode})</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {lecturers.length > 0 ? (
-            lecturers.map((lecturer) => (
-              <div
-                key={lecturer.id}
-                className={`border p-4 rounded cursor-pointer ${
-                  selectedLecturer?.id === lecturer.id ? 'bg-blue-100 border-blue-500' : 'hover:bg-gray-50'
-                }`}
-                onClick={() => handleLecturerSelect(lecturer)}
+      {/* Step 1: Enhanced Course Selection */}
+      {currentStep === 1 && (
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold mb-4">Step 1: Select a Course</h2>
+          
+          {/* Filter Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium mb-1">Department</label>
+              <select 
+                className="w-full p-2 border rounded"
+                value={filters.department}
+                onChange={(e) => setFilters({...filters, department: e.target.value})}
               >
-                <h3 className="font-medium">{lecturer.lastName} {lecturer.firstName}</h3>
-                <p className="text-gray-600">{lecturer.department}</p>
-                <p className="text-sm text-gray-500">{lecturer.qualifications}</p>
-              </div>
-            ))
-          ) : (
-            <p>No lecturers available for this course. Please select a different course.</p>
-          )}
-        </div>
-      </div>
-      
-      {/* Step 3: Time Slot Selection */}
-      <div className={`mb-6 ${currentStep === 3 ? 'block' : 'hidden'}`}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Step 3: Choose Time Slot</h2>
-          <button
-            className="text-blue-500 hover:text-blue-700"
-            onClick={() => {
-              setSelectedLecturer(null);
-              setCurrentStep(2);
-            }}
-          >
-            ← Back to Lecturers
-          </button>
-        </div>
-        
-        <div className="mb-4">
-          <p className="font-medium">Selected Course: {selectedCourse?.name} ({selectedCourse?.code})</p>
-          <p className="font-medium">Selected Lecturer: {selectedLecturer?.name}</p>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border">
-            <thead>
-              <tr>
-                <th className="py-2 px-4 border">Day</th>
-                <th className="py-2 px-4 border">Time</th>
-                <th className="py-2 px-4 border">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {timeSlots.length > 0 ? (
-                timeSlots.map((slot, index) => (
-                  <tr key={index} className={selectedTimeSlot === slot ? 'bg-blue-100' : ''}>
-                    <td className="py-2 px-4 border">{slot.dayOfWeek}</td>
-                    <td className="py-2 px-4 border">{`${slot.startTime} - ${slot.endTime}`}</td>
-                    <td className="py-2 px-4 border">
-                      <button
-                        className={`px-3 py-1 rounded ${
-                          selectedTimeSlot === slot
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        }`}
-                        onClick={() => handleTimeSlotSelect(slot)}
-                      >
-                        {selectedTimeSlot === slot ? 'Selected' : 'Select'}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="3" className="py-4 text-center">
-                    No available time slots for this combination. Please select a different lecturer.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        
-        {selectedTimeSlot && (
-          <div className="mt-6">
-            <h3 className="font-medium mb-2">Assignment Summary:</h3>
-            <ul className="list-disc pl-5 mb-4">
-              <li>Course: {selectedCourse?.name} ({selectedCourse?.code})</li>
-              <li>Lecturer: {selectedLecturer?.name}</li>
-              <li>Day: {selectedTimeSlot.dayOfWeek}</li>
-              <li>Time: {selectedTimeSlot.startTime} - {selectedTimeSlot.endTime}</li>
-            </ul>
+                <option value="">All Departments</option>
+                <option value="CS">Computer Science</option>
+                <option value="MA">Mathematics</option>
+                {/* Add more departments */}
+              </select>
+            </div>
             
-            <button
-              className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded"
-              onClick={handleSubmit}
-            >
-              Confirm Assignment
-            </button>
+            <div>
+              <label className="block text-sm font-medium mb-1">Credits</label>
+              <select 
+                className="w-full p-2 border rounded"
+                value={filters.creditHours}
+                onChange={(e) => setFilters({...filters, creditHours: e.target.value})}
+              >
+                <option value="">All Credits</option>
+                <option value="2">2 Credits</option>
+                <option value="3">3 Credits</option>
+                <option value="4">4 Credits</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Search</label>
+              <input
+                type="text"
+                className="w-full p-2 border rounded"
+                placeholder="Search courses..."
+                value={filters.searchTerm}
+                onChange={(e) => setFilters({...filters, searchTerm: e.target.value})}
+              />
+            </div>
           </div>
-        )}
-      </div>
-      
-      {/* Reset Button */}
-      {currentStep > 1 && (
-        <div className="mt-6">
-          <button
-            className="text-gray-500 hover:text-gray-700"
-            onClick={handleReset}
-          >
-            Reset and Start Over
-          </button>
+          
+          {/* Course Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredCourses.map((course) => (
+              <div
+                key={course.id}
+                className={`border p-4 rounded cursor-pointer transition-all ${
+                  selectedCourse?.id === course.id 
+                    ? 'bg-blue-100 border-blue-500 scale-[1.02]' 
+                    : 'hover:bg-gray-50 hover:border-gray-300'
+                }`}
+                onClick={() => handleCourseSelect(course)}
+              >
+                <h3 className="font-medium">{course.name}</h3>
+                <p className="text-gray-600">{course.code}</p>
+                <div className="flex justify-between mt-2">
+                  <span className="text-sm text-gray-500">{course.credits} credits</span>
+                  <span className="text-sm text-gray-500">{course.department}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
+      
+      {/* Step 2: Enhanced Lecturer Assignment */}
+      {currentStep === 2 && (
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Step 2: Assign a Lecturer</h2>
+            <button
+              className="text-blue-500 hover:text-blue-700 flex items-center"
+              onClick={goBack}
+            >
+              ← Back to Courses
+            </button>
+          </div>
+          
+          <div className="mb-4 p-4 bg-gray-50 rounded">
+            <p className="font-medium">Selected Course: {selectedCourse?.name} ({selectedCourse?.code})</p>
+            <p className="text-sm text-gray-600">{selectedCourse?.credits} credits | {selectedCourse?.department}</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {lecturers.length > 0 ? (
+              lecturers.map((lecturer) => (
+                <div
+                  key={lecturer.id}
+                  className={`border p-4 rounded cursor-pointer transition-all ${
+                    selectedLecturer?.id === lecturer.id 
+                      ? 'bg-blue-100 border-blue-500 scale-[1.02]' 
+                      : 'hover:bg-gray-50 hover:border-gray-300'
+                  }`}
+                  onClick={() => handleLecturerSelect(lecturer)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium">{lecturer.lastName}, {lecturer.firstName}</h3>
+                      <p className="text-gray-600">{lecturer.department}</p>
+                    </div>
+                    {lecturerWorkloads[lecturer.id] && (
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        lecturerWorkloads[lecturer.id] > 15 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {lecturerWorkloads[lecturer.id]} hrs/wk
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">{lecturer.qualifications}</p>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full p-4 text-center bg-yellow-50 rounded">
+                <p>No lecturers available for this course.</p>
+                <button 
+                  className="text-blue-500 mt-2"
+                  onClick={handleReset}
+                >
+                  Select a different course
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Step 3: Enhanced Time Slot Selection */}
+      {currentStep === 3 && (
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Step 3: Choose Time Slot</h2>
+            <button
+              className="text-blue-500 hover:text-blue-700 flex items-center"
+              onClick={goBack}
+            >
+              ← Back to Lecturers
+            </button>
+          </div>
+          
+          <div className="mb-4 p-4 bg-gray-50 rounded">
+            <p className="font-medium">Selected Course: {selectedCourse?.name} ({selectedCourse?.code})</p>
+            <p className="font-medium">Lecturer: {selectedLecturer?.lastName}, {selectedLecturer?.firstName}</p>
+            {selectedLecturer && lecturerWorkloads[selectedLecturer.id] && (
+              <p className="text-sm text-gray-600">
+                Current workload: {lecturerWorkloads[selectedLecturer.id]} hours/week
+              </p>
+            )}
+          </div>
+          
+          <div className="overflow-x-auto mb-6">
+            <table className="min-w-full bg-white border">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="py-3 px-4 border font-medium">Day</th>
+                  <th className="py-3 px-4 border font-medium">Time</th>
+                  <th className="py-3 px-4 border font-medium">Status</th>
+                  <th className="py-3 px-4 border font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timeSlots.length > 0 ? (
+                  timeSlots.map((slot, index) => {
+                    const slotKey = `${slot.dayOfWeek}-${slot.startTime}`;
+                    const hasConflict = conflictMap[slotKey];
+                    
+                    return (
+                      <tr 
+                        key={index} 
+                        className={selectedTimeSlot === slot 
+                          ? 'bg-blue-50' 
+                          : 'hover:bg-gray-50'
+                        }
+                      >
+                        <td className="py-3 px-4 border">{slot.dayOfWeek}</td>
+                        <td className="py-3 px-4 border">{`${slot.startTime} - ${slot.endTime}`}</td>
+                        <td className="py-3 px-4 border">
+                          {hasConflict ? (
+                            <span className="text-red-600 text-sm">Conflict</span>
+                          ) : (
+                            <span className="text-green-600 text-sm">Available</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 border">
+                          <button
+                            className={`px-3 py-1 rounded text-sm ${
+                              selectedTimeSlot === slot
+                                ? 'bg-blue-500 text-white'
+                                : hasConflict
+                                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            }`}
+                            onClick={() => !hasConflict && handleTimeSlotSelect(slot)}
+                            disabled={hasConflict}
+                          >
+                            {selectedTimeSlot === slot ? 'Selected' : 'Select'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="py-4 text-center">
+                      No available time slots for this combination. Please select a different lecturer.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Assignment Preview */}
+          {selectedTimeSlot && (
+            <div className="mt-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
+              <h3 className="font-medium mb-3 text-lg">Assignment Preview</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-700"><span className="font-medium">Course:</span> {selectedCourse?.name}</p>
+                  <p className="text-gray-700"><span className="font-medium">Code:</span> {selectedCourse?.code}</p>
+                  <p className="text-gray-700"><span className="font-medium">Credits:</span> {selectedCourse?.credits}</p>
+                </div>
+                <div>
+                  <p className="text-gray-700"><span className="font-medium">Lecturer:</span> {selectedLecturer?.lastName}, {selectedLecturer?.firstName}</p>
+                  <p className="text-gray-700"><span className="font-medium">Time:</span> {selectedTimeSlot.dayOfWeek} {selectedTimeSlot.startTime}-{selectedTimeSlot.endTime}</p>
+                </div>
+              </div>
+              
+              <div className="mt-4 flex justify-end space-x-3">
+                <button
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded"
+                  onClick={handleReset}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded"
+                  onClick={handleSubmit}
+                >
+                  Confirm Assignment
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Batch Mode Toggle (future feature) */}
+      <div className="mt-6 flex justify-between items-center">
+        <button
+          className="text-gray-500 hover:text-gray-700 text-sm"
+          onClick={handleReset}
+        >
+          Reset Workflow
+        </button>
+        
+        <label className="inline-flex items-center cursor-pointer">
+          <input 
+            type="checkbox" 
+            className="sr-only peer" 
+            checked={batchMode}
+            onChange={() => setBatchMode(!batchMode)}
+          />
+          <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+          <span className="ml-2 text-sm font-medium text-gray-700">
+            Batch Assignment Mode
+          </span>
+        </label>
+      </div>
     </div>
   );
 };
 
-export default CourseAssignment;
+export default CourseAssignment; 
