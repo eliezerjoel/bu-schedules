@@ -59,7 +59,7 @@ const CourseAssignment = () => {
           // Fetch workloads for each lecturer
           const workloads = {};
           await Promise.all(response.data.map(async lecturer => {
-            const res = await axios.get(`/api/lecturers/${lecturer.id}/workload`);
+            const res = await axios.get(`http://localhost:8080/api/instructors/${lecturer.id}/workload`);
             workloads[lecturer.id] = res.data.totalHours;
           }));
           setLecturerWorkloads(workloads);
@@ -84,14 +84,14 @@ const CourseAssignment = () => {
         try {
           // Get available time slots
           const slotsResponse = await axios.get(
-            `/api/timetable/timeslots/available?courseId=${selectedCourse.id}&lecturerId=${selectedLecturer.id}`
+            `http://localhost:8080/api/timeslots/available?courseId=${selectedCourse.id}&lecturerId=${selectedLecturer.id}`
           );
           setTimeSlots(slotsResponse.data);
           
           // Check conflicts for each slot
           const conflicts = {};
           await Promise.all(slotsResponse.data.map(async slot => {
-            const res = await axios.post('/api/schedule/check-conflict', {
+            const res = await axios.post('http://localhost:8080/api/schedule/check-conflict', {
               lecturerId: selectedLecturer.id,
               day: slot.dayOfWeek,
               time: slot.startTime
