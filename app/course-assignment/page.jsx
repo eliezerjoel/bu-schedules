@@ -219,7 +219,7 @@ const CourseAssignment = () => {
     
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:8080/api/assignments/assign', {
+      const response = await axios.post('http://localhost:8080/api/scheduled-classes/assign', {
         courseId: selectedCourse.id,
         instructorId: selectedLecturer.id,
         dayOfWeek: selectedTimeSlot.dayOfWeek,
