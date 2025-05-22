@@ -221,10 +221,11 @@ const CourseAssignment = () => {
     try {
       const response = await axios.post('http://localhost:8080/api/assignments/assign', {
         courseId: selectedCourse.id,
-        lecturerId: selectedLecturer.id,
+        instructorId: selectedLecturer.id,
         dayOfWeek: selectedTimeSlot.dayOfWeek,
         startTime: selectedTimeSlot.startTime,
-        endTime: selectedTimeSlot.endTime
+        endTime: selectedTimeSlot.endTime,
+        studentGroupId: "68143927369fa42e645e95cb"
       });
       
       setSuccess(`Successfully assigned ${selectedCourse.name} to ${selectedLecturer.name} on ${selectedTimeSlot.dayOfWeek} at ${selectedTimeSlot.startTime}`);
