@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -84,22 +85,41 @@ const CourseAssignment = () => {
         try {
           // Get available time slots
           const slotsResponse = await axios.get(
-            `http://localhost:8080/api/timeslots/available?courseId=${selectedCourse.id}&lecturerId=${selectedLecturer.id}`
+            `http://localhost:8080/api/timeslots/available?courseId=${selectedCourse.id}&instructorId=${selectedLecturer.id}`
           );
           setTimeSlots(slotsResponse.data);
           
-          // Check conflicts for each slot
+          // Check conflicts for each slot - FIXED: Using the corrected checkConflicts function
           const conflicts = {};
-          await Promise.all(slotsResponse.data.map(async slot => {
-            const res = await axios.post('http://localhost:8080/api/schedule/check-conflict', {
-              lecturerId: selectedLecturer.id,
-              day: slot.dayOfWeek,
-              time: slot.startTime
-            });
-            conflicts[`${slot.dayOfWeek}-${slot.startTime}`] = res.data.hasConflict;
-          }));
-          setConflictMap(conflicts);
           
+          await Promise.all(slotsResponse.data.map(async slot => {
+            try {
+              const conflictData = {
+                lecturerId: selectedLecturer.id,
+                dayOfWeek: slot.dayOfWeek,
+                startTime: slot.startTime,
+                endTime: slot.endTime
+              };
+              
+              console.log('Checking conflict for slot:', slot);
+              console.log('Conflict check data:', conflictData);
+              
+              const response = await axios.post(
+                'http://localhost:8080/api/scheduled-classes/check-conflict', 
+                conflictData
+              );
+              
+              console.log("Response from server:", response.data);
+              // FIXED: Store the hasConflict boolean value from the response
+              conflicts[`${slot.dayOfWeek}-${slot.startTime}`] = response.data.hasConflict;
+            } catch (err) {
+              console.error('Error checking conflict for slot:', slot, err);
+              // Default to assuming conflict if check fails
+              conflicts[`${slot.dayOfWeek}-${slot.startTime}`] = true;
+            }
+          }));
+          
+          setConflictMap(conflicts);
           setCurrentStep(3);
         } catch (err) {
           setError('Failed to load time slots. Please try again.');
@@ -165,16 +185,18 @@ const CourseAssignment = () => {
     setError(null);
   };
   
-  // Check for conflicts
+  // FIXED: Updated checkConflicts function based on the provided code
   const checkConflicts = async () => {
     try {
-      const response = await axios.post('/api/timetable/check-conflict', {
+      const response = await axios.post('http://localhost:8080/api/scheduled-classes/check-conflict', {
         lecturerId: selectedLecturer.id,
         dayOfWeek: selectedTimeSlot.dayOfWeek,
         startTime: selectedTimeSlot.startTime,
         endTime: selectedTimeSlot.endTime
       });
-      return response.data.hasConflict;
+      
+      console.log("Response from server:", response.data);
+      return response.data.hasConflict; // Make sure this matches your backend response
     } catch (err) {
       console.error('Conflict check failed:', err);
       return true; // Assume conflict if check fails
@@ -188,6 +210,7 @@ const CourseAssignment = () => {
       return;
     }
     
+    // FIXED: Use the updated checkConflicts function
     const hasConflict = await checkConflicts();
     if (hasConflict) {
       setError('This assignment conflicts with existing schedule. Please choose a different time.');
@@ -196,7 +219,7 @@ const CourseAssignment = () => {
     
     setLoading(true);
     try {
-      const response = await axios.post('/api/timetable/assign', {
+      const response = await axios.post('http://localhost:8080/api/assignments/assign', {
         courseId: selectedCourse.id,
         lecturerId: selectedLecturer.id,
         dayOfWeek: selectedTimeSlot.dayOfWeek,
@@ -440,7 +463,8 @@ const CourseAssignment = () => {
                 {timeSlots.length > 0 ? (
                   timeSlots.map((slot, index) => {
                     const slotKey = `${slot.dayOfWeek}-${slot.startTime}`;
-                    const hasConflict = conflictMap[slotKey];
+                    // FIXED: Use the correct conflict value from the map
+                    const hasConflict = conflictMap[slotKey] === true;
                     
                     return (
                       <tr 
@@ -454,7 +478,7 @@ const CourseAssignment = () => {
                         <td className="py-3 px-4 border">{`${slot.startTime} - ${slot.endTime}`}</td>
                         <td className="py-3 px-4 border">
                           {hasConflict ? (
-                            <span className="text-red-600 text-sm">Conflict</span>
+                            <span className="text-red-600 text-sm">Conflicted</span>
                           ) : (
                             <span className="text-green-600 text-sm">Available</span>
                           )}
@@ -549,4 +573,4 @@ const CourseAssignment = () => {
   );
 };
 
-export default CourseAssignment; 
+export default CourseAssignment;
