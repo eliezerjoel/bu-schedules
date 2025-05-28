@@ -29,7 +29,8 @@ const WeeklyTimetable = () => {
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
-        const response = await axios.get('http://localhost:8080/api/scheduled-classes/instructor/6811cd790f79d80d29592791');
+        const response = await axios.get('http://localhost:8080/api/scheduled-classes/instructor/6811d0540f79d80d29592792');
+        console.log('Fetched schedule:', response.data);
         setSchedule(response.data);
         setLoading(false);
       } catch (err) {

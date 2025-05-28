@@ -29,7 +29,8 @@ const WeeklyTimetable = () => {
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
-        const response = await axios.get('http://localhost:8080/api/scheduled-classes/instructor/6811cd790f79d80d29592791');
+        const response = await axios.get('http://localhost:8080/api/scheduled-classes/instructor/6811d0540f79d80d29592792');
+        console.log('Fetched schedule:', response.data);
         setSchedule(response.data);
         setLoading(false);
       } catch (err) {
@@ -41,29 +42,37 @@ const WeeklyTimetable = () => {
 
     fetchSchedule();
   }, []);
+// Group classes by day and time for easier rendering
+const groupClasses = () => {
+  const grouped = {};
 
-  // Group classes by day and time for easier rendering
-  const groupClasses = () => {
-    const grouped = {};
+  days.forEach(day => {
+    grouped[day] = {};
+    timeSlots.forEach(slot => {
+      grouped[day][slot] = [];
+    });
+  });
+
+  schedule.forEach(cls => {
+    const day = cls.dayOfWeek; // Assuming dayOfWeek matches your day names
     
-    days.forEach(day => {
-      grouped[day] = {};
-      timeSlots.forEach(slot => {
-        grouped[day][slot] = [];
-      });
-    });
+    // Extract only the hour and minute parts for comparison
+    const startTimeWithoutSeconds = cls.startTime.substring(0, 5); // "HH:MM"
+    const endTimeWithoutSeconds = cls.endTime.substring(0, 5);     // "HH:MM"
+    
+    const timeKey = `${startTimeWithoutSeconds} - ${endTimeWithoutSeconds}`;
 
-    schedule.forEach(cls => {
-      const day = cls.dayOfWeek; // Assuming dayOfWeek matches your day names
-      const timeKey = `${cls.startTime} - ${cls.endTime}`;
-      
-      if (grouped[day] && grouped[day][timeKey]) {
-        grouped[day][timeKey].push(cls);
-      }
-    });
+    // Ensure day matches the array's capitalized format if your backend uses a different case
+    const formattedDay = day.charAt(0).toUpperCase() + day.slice(1).toLowerCase();
 
-    return grouped;
-  };
+    // Check if the formattedDay and timeKey exist in grouped before pushing
+    if (grouped[formattedDay] && grouped[formattedDay][timeKey]) {
+      grouped[formattedDay][timeKey].push(cls);
+    }
+  });
+
+  return grouped;
+};
 
   const groupedClasses = groupClasses();
 
@@ -95,8 +104,8 @@ const WeeklyTimetable = () => {
                       <td key={`${day}-${timeSlot}`} className="border p-1">
                         {classes.map(cls => (
                           <div key={cls.id} className="mb-1 p-1 bg-blue-50 rounded">
-                            <div className="font-medium">{cls.course?.name || 'No course'}</div>
-                            <div className="text-sm">{cls.course?.code || ''}</div>
+                            <div className="font-medium">{cls.course?.courseName || 'No course'}</div>
+                            <div className="text-sm">{cls.course?.courseCode || ''}</div>
                           </div>
                         ))}
                       </td>
