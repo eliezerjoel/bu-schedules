@@ -65,12 +65,12 @@ export function LecturerNavbar() {
               </Button>
             </Link>
 
-            <Link href="/">
+            {/* <Link href="/">
               <Button variant="ghost" className="text-gray-700 hover:text-blue-600 hover:bg-blue-50 px-4 py-2">
                 <Home className="w-4 h-4 mr-2" />
                 Public View
               </Button>
-            </Link>
+            </Link> */}
           </div>
 
           {/* Sign Out */}
