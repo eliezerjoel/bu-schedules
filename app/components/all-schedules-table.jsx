@@ -32,7 +32,7 @@ const AllSchedulesTable = () => {
         setLoading(true)
 
         // Fetch all schedules
-        const schedulesResponse = await axios.get("http://localhost:8080/api/scheduled-classes/all")
+        const schedulesResponse = await axios.get("http://localhost:8080/api/scheduled-classes")
 
         // Fetch departments
         const departmentsResponse = await axios.get("http://localhost:8080/api/departments")
