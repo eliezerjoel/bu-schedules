@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -37,12 +37,15 @@ export function AdminDashboard() {
   const [isLecturerModalOpen, setIsLecturerModalOpen] = useState(false)
   const [courses, setCourses] = useState([])
   const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false)
-  const [departments, setDepartments] = useState([  ])
+  const [departments, setDepartments] = useState([])
 
-
+  // New state variables for timetable generation feedback
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState(null)
+  const [generateSuccess, setGenerateSuccess] = useState(false);
 
   const handleGenerateTimetable = async () => {
-    setIsGenerating(true)
+    setIsGenerating(true) // Set generating to true
     setGenerateError(null) // Clear previous errors
     setGenerateSuccess(false); // Clear previous success
 
@@ -78,13 +81,10 @@ export function AdminDashboard() {
       console.error("Error generating timetable:", error)
       setGenerateError(error.message)
     } finally {
-      setIsGenerating(false)
+      setIsGenerating(false) // Set generating to false regardless of success or failure
+      console.log("Timetable generation process completed") // Changed from console.error to console.log
     }
   }
-
-
-
-
 
   // Fetch departments from API on mount or after creation
   const fetchDepartments = () => {
@@ -114,10 +114,10 @@ export function AdminDashboard() {
           code: course.courseCode,
           name: course.courseName,
           department: course.departmentId || "Unassigned",
-          lecturer: "Unassigned",
-          students: 0,
-          credits: 0,
-          schedule: "Unassigned",
+          lecturer: "Unassigned", // This might need actual lecturer data from backend
+          students: 0, // This might need actual student count from backend
+          credits: 0, // This might need actual credits from backend
+          schedule: "Unassigned", // This might need actual schedule data from backend
         }))
         setCourses(mappedCourses)
       })
@@ -137,11 +137,11 @@ export function AdminDashboard() {
   // Sample statistics
   const stats = {
     totalCourses: courses.length,
-    totalLecturers: 45,
-    totalStudents: 2340,
-    totalDepartments: 6,
-    activeClasses: 89,
-    conflicts: 3,
+    totalLecturers: 45, // Placeholder, fetch from API if available
+    totalStudents: 2340, // Placeholder, fetch from API if available
+    totalDepartments: departments.length,
+    activeClasses: 89, // Placeholder, fetch from API if available
+    conflicts: 3, // Placeholder, fetch from API if available
   }
   // Lecturers state
   const [lecturers, setLecturers] = useState([])
@@ -156,7 +156,7 @@ export function AdminDashboard() {
           name: `${lecturer.firstName} ${lecturer.lastName}`,
           department: lecturer.department,
           email: lecturer.email,
-          courses: "Counting",
+          courses: "Counting", // Placeholder, populate with actual course count/list
           status: "Active",
         }))
         setLecturers(mappedLecturers)
@@ -166,7 +166,7 @@ export function AdminDashboard() {
       })
   }, [])
   // Handle lecturer creation
-const handleLecturerCreated = () => {
+  const handleLecturerCreated = () => {
     fetch("http://localhost:8080/api/instructors")
       .then((res) => res.json())
       .then((data) => {
@@ -175,7 +175,7 @@ const handleLecturerCreated = () => {
           name: `${lecturer.firstName} ${lecturer.lastName}`,
           department: lecturer.department,
           email: lecturer.email,
-          courses: "Counting",
+          courses: "Counting", // This needs to be calculated or fetched
           status: "Active",
         }))
         setLecturers(mappedLecturers)
@@ -185,89 +185,9 @@ const handleLecturerCreated = () => {
       })
   }
 
-  // Sample departments data
-  // const departments = [
-  //   {
-  //     id: 1,
-  //     name: "School of Business",
-  //     shortName: "Business",
-  //     head: "Prof. Mary Kisakye",
-  //     email: "business@bugema.ac.ug",
-  //     courses: 24,
-  //     lecturers: 8,
-  //     students: 450,
-  //     programs: ["BBA", "BCOM", "MBA"],
-  //     established: "1995",
-  //     status: "Active",
-  //   },
-  //   {
-  //     id: 2,
-  //     name: "School of Science & Technology",
-  //     shortName: "Science & Technology",
-  //     head: "Dr. Sarah Nakato",
-  //     email: "science@bugema.ac.ug",
-  //     courses: 32,
-  //     lecturers: 12,
-  //     students: 380,
-  //     programs: ["BSc Computer Science", "BSc IT", "BEng"],
-  //     established: "1998",
-  //     status: "Active",
-  //   },
-  //   {
-  //     id: 3,
-  //     name: "School of Education",
-  //     shortName: "Education",
-  //     head: "Dr. Peter Musoke",
-  //     email: "education@bugema.ac.ug",
-  //     courses: 28,
-  //     lecturers: 10,
-  //     students: 520,
-  //     programs: ["BEd", "MEd", "Diploma in Education"],
-  //     established: "1992",
-  //     status: "Active",
-  //   },
-  //   {
-  //     id: 4,
-  //     name: "School of Theology",
-  //     shortName: "Theology",
-  //     head: "Rev. Dr. John Ssemakula",
-  //     email: "theology@bugema.ac.ug",
-  //     courses: 18,
-  //     lecturers: 6,
-  //     students: 180,
-  //     programs: ["BTh", "MTh", "Diploma in Theology"],
-  //     established: "1948",
-  //     status: "Active",
-  //   },
-  //   {
-  //     id: 5,
-  //     name: "School of Health Sciences",
-  //     shortName: "Health Sciences",
-  //     head: "Dr. Grace Namukasa",
-  //     email: "health@bugema.ac.ug",
-  //     courses: 22,
-  //     lecturers: 7,
-  //     students: 290,
-  //     programs: ["BSc Nursing", "BSc Public Health", "Diploma in Nursing"],
-  //     established: "2005",
-  //     status: "Active",
-  //   },
-  //   {
-  //     id: 6,
-  //     name: "School of Agriculture",
-  //     shortName: "Agriculture",
-  //     head: "Prof. James Okello",
-  //     email: "agriculture@bugema.ac.ug",
-  //     courses: 20,
-  //     lecturers: 5,
-  //     students: 220,
-  //     programs: ["BSc Agriculture", "BSc Agribusiness", "Diploma in Agriculture"],
-  //     established: "2000",
-  //     status: "Active",
-  //   },
-  // ]
-
   const handleSaveCourse = (courseData) => {
+    // This part should ideally send a POST request to your backend to create the course
+    // For now, it's updating local state directly as per previous logic.
     const newCourse = {
       id: Date.now(), // In real app, this would be generated by backend
       code: courseData.courseCode,
@@ -374,6 +294,26 @@ const handleLecturerCreated = () => {
           <TabsTrigger value="timetable">Timetable</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
+
+        {generateSuccess && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong className="font-bold">Success!</strong>
+            <span className="block sm:inline"> Timetable generation request sent.</span>
+            <span className="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onClick={() => setGenerateSuccess(false)}>
+              <svg className="fill-current h-6 w-6 text-green-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.697l-2.651 3.15a1.2 1.2 0 1 1-1.697-1.697l3.15-2.651-3.15-2.651a1.2 1.2 0 1 1 1.697-1.697l2.651 3.15 2.651-3.15a1.2 1.2 0 1 1 1.697 1.697l-3.15 2.651 3.15 2.651a1.2 1.2 0 0 1 0 1.697z"/></svg>
+            </span>
+          </div>
+        )}
+
+        {generateError && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong className="font-bold">Error!</strong>
+            <span className="block sm:inline"> {generateError}</span>
+            <span className="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onClick={() => setGenerateError(null)}>
+              <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.697l-2.651 3.15a1.2 1.2 0 1 1-1.697-1.697l3.15-2.651-3.15-2.651a1.2 1.2 0 1 1 1.697-1.697l2.651 3.15 2.651-3.15a1.2 1.2 0 1 1 1.697 1.697l-3.15 2.651 3.15 2.651a1.2 1.2 0 0 1 0 1.697z"/></svg>
+            </span>
+          </div>
+        )}
 
         <TabsContent value="courses" className="space-y-6">
           {/* Course Management */}
@@ -504,7 +444,7 @@ const handleLecturerCreated = () => {
                               <div>Department: {lecturer.department}</div>
                               <div>Email: {lecturer.email}</div>
                               <div>Courses: {lecturer.courses}</div>
-                              <div>Students: {lecturer.students}</div>
+                              {/* <div>Students: {lecturer.students}</div> If applicable */}
                             </div>
                           </div>
                           <div className="flex gap-2">
@@ -628,10 +568,25 @@ const handleLecturerCreated = () => {
                 <h3 className="text-lg font-medium mb-2">Timetable Management</h3>
                 <p className="mb-4">Manage university-wide timetables, resolve conflicts, and optimize schedules</p>
                 <div className="flex justify-center gap-4">
-                  <Button  onClick={handleGenerateTimetable} 
-             className="bg-blue-600 hover:bg-blue-700">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Timetable
+                  <Button
+                    onClick={handleGenerateTimetable}
+                    className="bg-blue-600 hover:bg-blue-700"
+                    disabled={isGenerating} // Disable button while generating
+                  >
+                    {isGenerating ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Timetable
+                      </>
+                    )}
                   </Button>
                   <Button variant="outline">
                     <AlertTriangle className="w-4 h-4 mr-2" />
@@ -707,26 +662,27 @@ const handleLecturerCreated = () => {
         </TabsContent>
       </Tabs>
 
-        <CourseCreationModal
-          isOpen={isCourseModalOpen}
-          onClose={() => setIsCourseModalOpen(false)}
-          onSave={handleSaveCourse}
-          existingCourses={courses}
-        />
+      <CourseCreationModal
+        isOpen={isCourseModalOpen}
+        onClose={() => setIsCourseModalOpen(false)}
+        onSave={handleSaveCourse}
+        existingCourses={courses}
+      />
 
-        {/* Department Creation Modal */}
-        <DepartmentCreationModal
-          isOpen={isDepartmentModalOpen}
-          onClose={() => setIsDepartmentModalOpen(false)}
-          onCreated={handleDepartmentCreated}
-        />
+      {/* Department Creation Modal */}
+      <DepartmentCreationModal
+        isOpen={isDepartmentModalOpen}
+        onClose={() => setIsDepartmentModalOpen(false)}
+        onCreated={handleDepartmentCreated}
+      />
 
-        {/* Lecturer Creation Modal */}
+      {/* Lecturer Creation Modal */}
       <LecturerCreationModal
         isOpen={isLecturerModalOpen}
         onClose={() => setIsLecturerModalOpen(false)}
         onCreated={handleLecturerCreated}
       />
+      {/* This DepartmentCreationModal appears to be a duplicate, consider removing if not intentional */}
       <DepartmentCreationModal
         isOpen={isDepartmentModalOpen}
         onClose={() => setIsDepartmentModalOpen(false)}
