@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -28,42 +28,103 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { CourseCreationModal } from "./course-creation-modal"
+import { LecturerCreationModal } from "./lecturer-creation-modal"
+import { DepartmentCreationModal } from "./department-creation-modal"
 
 export function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isCourseModalOpen, setIsCourseModalOpen] = useState(false)
-  const [courses, setCourses] = useState([
-    {
-      id: 1,
-      code: "CSC 2101",
-      name: "Data Structures and Algorithms",
-      department: "Science & Technology",
-      lecturer: "Dr. Sarah Nakato",
-      students: 45,
-      credits: 3,
-      schedule: "Mon 8:00-10:00, Wed 14:00-17:00",
-    },
-    {
-      id: 2,
-      code: "BBA 3201",
-      name: "Strategic Management",
-      department: "Business",
-      lecturer: "Prof. Mary Kisakye",
-      students: 67,
-      credits: 4,
-      schedule: "Tue 10:00-12:00, Thu 14:00-16:00",
-    },
-    {
-      id: 3,
-      code: "EDU 2105",
-      name: "Educational Psychology",
-      department: "Education",
-      lecturer: "Dr. Peter Musoke",
-      students: 52,
-      credits: 3,
-      schedule: "Mon 14:00-16:00, Fri 10:00-12:00",
-    },
-  ])
+  const [isLecturerModalOpen, setIsLecturerModalOpen] = useState(false)
+  const [courses, setCourses] = useState([])
+  const [isDepartmentModalOpen, setIsDepartmentModalOpen] = useState(false)
+  const [departments, setDepartments] = useState([  ])
+
+
+
+  const handleGenerateTimetable = async () => {
+    setIsGenerating(true)
+    setGenerateError(null) // Clear previous errors
+    setGenerateSuccess(false); // Clear previous success
+
+    try {
+      const response = await fetch("http://localhost:8080/api/schedule/generate", {
+        method: "POST", // Specify the HTTP method
+        headers: {
+          "Content-Type": "application/json",
+          // Add any other headers like Authorization if needed
+        },
+        // If your POST request needs a body (e.g., configuration for generation),
+        // uncomment and adjust the 'body' property:
+        // body: JSON.stringify({ /* your data here */ }),
+      })
+
+      if (!response.ok) {
+        // If the server response was not ok (e.g., 4xx or 5xx status)
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" })); // Try to parse error message
+        throw new Error(`Failed to generate timetable: ${response.status} ${response.statusText} - ${errorData.message || ''}`)
+      }
+
+      // Assuming a successful response means the generation process started/completed
+      // If the API returns useful data, you can consume it:
+      const result = await response.json();
+      console.log("Timetable generation initiated/completed:", result);
+      setGenerateSuccess(true); // Set success state
+
+      // Optionally, if the GeneralTimetable component needs to refresh its data
+      // after generation, you might need a way to trigger that (e.g., a prop, or global state).
+      // For now, we'll just show a success message.
+
+    } catch (error) {
+      console.error("Error generating timetable:", error)
+      setGenerateError(error.message)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+
+
+
+
+  // Fetch departments from API on mount or after creation
+  const fetchDepartments = () => {
+    fetch("http://localhost:8080/api/departments")
+      .then((res) => res.json())
+      .then((data) => setDepartments(data))
+      .catch((err) => {
+        console.error("Failed to fetch departments:", err)
+      })
+  }
+
+  useEffect(() => {
+    fetchDepartments()
+  }, [])
+
+  const handleDepartmentCreated = () => {
+    fetchDepartments()
+  }
+  // Fetch courses from API on mount
+  useEffect(() => {
+    fetch("http://localhost:8080/api/courses")
+      .then((res) => res.json())
+      .then((data) => {
+        // Map API fields to UI fields
+        const mappedCourses = data.map((course, idx) => ({
+          id: course.id || idx + 1,
+          code: course.courseCode,
+          name: course.courseName,
+          department: course.departmentId || "Unassigned",
+          lecturer: "Unassigned",
+          students: 0,
+          credits: 0,
+          schedule: "Unassigned",
+        }))
+        setCourses(mappedCourses)
+      })
+      .catch((err) => {
+        console.error("Failed to fetch courses:", err)
+      })
+  }, [])
 
   // Sample admin data
   const adminInfo = {
@@ -82,119 +143,129 @@ export function AdminDashboard() {
     activeClasses: 89,
     conflicts: 3,
   }
+  // Lecturers state
+  const [lecturers, setLecturers] = useState([])
 
-  // Sample lecturers data
-  const lecturers = [
-    {
-      id: 1,
-      name: "Dr. Sarah Nakato",
-      department: "Science & Technology",
-      email: "s.nakato@bugema.ac.ug",
-      courses: 3,
-      students: 120,
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "Prof. Mary Kisakye",
-      department: "Business",
-      email: "m.kisakye@bugema.ac.ug",
-      courses: 2,
-      students: 95,
-      status: "Active",
-    },
-    {
-      id: 3,
-      name: "Dr. Peter Musoke",
-      department: "Education",
-      email: "p.musoke@bugema.ac.ug",
-      courses: 4,
-      students: 180,
-      status: "Active",
-    },
-  ]
+  // Fetch lecturers from API on mount
+  useEffect(() => {
+    fetch("http://localhost:8080/api/instructors")
+      .then((res) => res.json())
+      .then((data) => {
+        const mappedLecturers = data.map((lecturer, idx) => ({
+          id: lecturer.id || idx + 1,
+          name: `${lecturer.firstName} ${lecturer.lastName}`,
+          department: lecturer.department,
+          email: lecturer.email,
+          courses: "Counting",
+          status: "Active",
+        }))
+        setLecturers(mappedLecturers)
+      })
+      .catch((err) => {
+        console.error("Failed to fetch lecturers:", err)
+      })
+  }, [])
+  // Handle lecturer creation
+const handleLecturerCreated = () => {
+    fetch("http://localhost:8080/api/instructors")
+      .then((res) => res.json())
+      .then((data) => {
+        const mappedLecturers = data.map((lecturer, idx) => ({
+          id: lecturer.id || idx + 1,
+          name: `${lecturer.firstName} ${lecturer.lastName}`,
+          department: lecturer.department,
+          email: lecturer.email,
+          courses: "Counting",
+          status: "Active",
+        }))
+        setLecturers(mappedLecturers)
+      })
+      .catch((err) => {
+        console.error("Failed to fetch lecturers:", err)
+      })
+  }
 
   // Sample departments data
-  const departments = [
-    {
-      id: 1,
-      name: "School of Business",
-      shortName: "Business",
-      head: "Prof. Mary Kisakye",
-      email: "business@bugema.ac.ug",
-      courses: 24,
-      lecturers: 8,
-      students: 450,
-      programs: ["BBA", "BCOM", "MBA"],
-      established: "1995",
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "School of Science & Technology",
-      shortName: "Science & Technology",
-      head: "Dr. Sarah Nakato",
-      email: "science@bugema.ac.ug",
-      courses: 32,
-      lecturers: 12,
-      students: 380,
-      programs: ["BSc Computer Science", "BSc IT", "BEng"],
-      established: "1998",
-      status: "Active",
-    },
-    {
-      id: 3,
-      name: "School of Education",
-      shortName: "Education",
-      head: "Dr. Peter Musoke",
-      email: "education@bugema.ac.ug",
-      courses: 28,
-      lecturers: 10,
-      students: 520,
-      programs: ["BEd", "MEd", "Diploma in Education"],
-      established: "1992",
-      status: "Active",
-    },
-    {
-      id: 4,
-      name: "School of Theology",
-      shortName: "Theology",
-      head: "Rev. Dr. John Ssemakula",
-      email: "theology@bugema.ac.ug",
-      courses: 18,
-      lecturers: 6,
-      students: 180,
-      programs: ["BTh", "MTh", "Diploma in Theology"],
-      established: "1948",
-      status: "Active",
-    },
-    {
-      id: 5,
-      name: "School of Health Sciences",
-      shortName: "Health Sciences",
-      head: "Dr. Grace Namukasa",
-      email: "health@bugema.ac.ug",
-      courses: 22,
-      lecturers: 7,
-      students: 290,
-      programs: ["BSc Nursing", "BSc Public Health", "Diploma in Nursing"],
-      established: "2005",
-      status: "Active",
-    },
-    {
-      id: 6,
-      name: "School of Agriculture",
-      shortName: "Agriculture",
-      head: "Prof. James Okello",
-      email: "agriculture@bugema.ac.ug",
-      courses: 20,
-      lecturers: 5,
-      students: 220,
-      programs: ["BSc Agriculture", "BSc Agribusiness", "Diploma in Agriculture"],
-      established: "2000",
-      status: "Active",
-    },
-  ]
+  // const departments = [
+  //   {
+  //     id: 1,
+  //     name: "School of Business",
+  //     shortName: "Business",
+  //     head: "Prof. Mary Kisakye",
+  //     email: "business@bugema.ac.ug",
+  //     courses: 24,
+  //     lecturers: 8,
+  //     students: 450,
+  //     programs: ["BBA", "BCOM", "MBA"],
+  //     established: "1995",
+  //     status: "Active",
+  //   },
+  //   {
+  //     id: 2,
+  //     name: "School of Science & Technology",
+  //     shortName: "Science & Technology",
+  //     head: "Dr. Sarah Nakato",
+  //     email: "science@bugema.ac.ug",
+  //     courses: 32,
+  //     lecturers: 12,
+  //     students: 380,
+  //     programs: ["BSc Computer Science", "BSc IT", "BEng"],
+  //     established: "1998",
+  //     status: "Active",
+  //   },
+  //   {
+  //     id: 3,
+  //     name: "School of Education",
+  //     shortName: "Education",
+  //     head: "Dr. Peter Musoke",
+  //     email: "education@bugema.ac.ug",
+  //     courses: 28,
+  //     lecturers: 10,
+  //     students: 520,
+  //     programs: ["BEd", "MEd", "Diploma in Education"],
+  //     established: "1992",
+  //     status: "Active",
+  //   },
+  //   {
+  //     id: 4,
+  //     name: "School of Theology",
+  //     shortName: "Theology",
+  //     head: "Rev. Dr. John Ssemakula",
+  //     email: "theology@bugema.ac.ug",
+  //     courses: 18,
+  //     lecturers: 6,
+  //     students: 180,
+  //     programs: ["BTh", "MTh", "Diploma in Theology"],
+  //     established: "1948",
+  //     status: "Active",
+  //   },
+  //   {
+  //     id: 5,
+  //     name: "School of Health Sciences",
+  //     shortName: "Health Sciences",
+  //     head: "Dr. Grace Namukasa",
+  //     email: "health@bugema.ac.ug",
+  //     courses: 22,
+  //     lecturers: 7,
+  //     students: 290,
+  //     programs: ["BSc Nursing", "BSc Public Health", "Diploma in Nursing"],
+  //     established: "2005",
+  //     status: "Active",
+  //   },
+  //   {
+  //     id: 6,
+  //     name: "School of Agriculture",
+  //     shortName: "Agriculture",
+  //     head: "Prof. James Okello",
+  //     email: "agriculture@bugema.ac.ug",
+  //     courses: 20,
+  //     lecturers: 5,
+  //     students: 220,
+  //     programs: ["BSc Agriculture", "BSc Agribusiness", "Diploma in Agriculture"],
+  //     established: "2000",
+  //     status: "Active",
+  //   },
+  // ]
 
   const handleSaveCourse = (courseData) => {
     const newCourse = {
@@ -402,7 +473,7 @@ export function AdminDashboard() {
                   Lecturer Management
                 </CardTitle>
                 <div className="flex gap-2">
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => setIsLecturerModalOpen(true)}>
                     <Plus className="w-4 h-4 mr-2" />
                     Add Lecturer
                   </Button>
@@ -481,7 +552,7 @@ export function AdminDashboard() {
                   Department Management
                 </CardTitle>
                 <div className="flex gap-2">
-                  <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
+                  <Button size="sm" onClick={() => setIsDepartmentModalOpen(true)} className="bg-orange-600 hover:bg-orange-700">
                     <Plus className="w-4 h-4 mr-2" />
                     Add Department
                   </Button>
@@ -557,7 +628,8 @@ export function AdminDashboard() {
                 <h3 className="text-lg font-medium mb-2">Timetable Management</h3>
                 <p className="mb-4">Manage university-wide timetables, resolve conflicts, and optimize schedules</p>
                 <div className="flex justify-center gap-4">
-                  <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Button  onClick={handleGenerateTimetable} 
+             className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="w-4 h-4 mr-2" />
                     Create Timetable
                   </Button>
@@ -635,12 +707,30 @@ export function AdminDashboard() {
         </TabsContent>
       </Tabs>
 
-      {/* Course Creation Modal */}
-      <CourseCreationModal
-        isOpen={isCourseModalOpen}
-        onClose={() => setIsCourseModalOpen(false)}
-        onSave={handleSaveCourse}
-        existingCourses={courses}
+        <CourseCreationModal
+          isOpen={isCourseModalOpen}
+          onClose={() => setIsCourseModalOpen(false)}
+          onSave={handleSaveCourse}
+          existingCourses={courses}
+        />
+
+        {/* Department Creation Modal */}
+        <DepartmentCreationModal
+          isOpen={isDepartmentModalOpen}
+          onClose={() => setIsDepartmentModalOpen(false)}
+          onCreated={handleDepartmentCreated}
+        />
+
+        {/* Lecturer Creation Modal */}
+      <LecturerCreationModal
+        isOpen={isLecturerModalOpen}
+        onClose={() => setIsLecturerModalOpen(false)}
+        onCreated={handleLecturerCreated}
+      />
+      <DepartmentCreationModal
+        isOpen={isDepartmentModalOpen}
+        onClose={() => setIsDepartmentModalOpen(false)}
+        onCreated={handleDepartmentCreated}
       />
     </div>
   )
